@@ -1,47 +1,102 @@
-# 🦆 DS614 Big Data Engineering: Redpanda Log-Structured Storage Analysis
+#  DS614 Big Data Engineering Project
 
-**Team:** THE DATA DUO
-**Members:** KESHAV GANGWANI , ANUSHA SUNGH
-**System Analyzed:** Redpanda — Kafka-compatible streaming platform
-**Repository:** https://github.com/keshavg25/redpanda
-**Base Source:** https://github.com/redpanda-data/redpanda
+## Redpanda Log-Structured Storage: Code-Level Analysis & Experimental Study
+
+⚠️**IMPORTANT:** Please switch to the `bigdata-experiments` branch to view all project work.
 
 ---
 
 #  Executive Summary
 
-Modern streaming systems rely on log-structured storage for high-throughput data ingestion. Redpanda implements this using segmented append-only logs, optimized for sequential disk access and low-latency processing.
+This project analyzes **Redpanda**, a Kafka-compatible distributed streaming system, by directly examining its source code and experimentally modifying its internal behavior.
 
-This project goes beyond black-box usage by **modifying Redpanda’s source code**, rebuilding the system, and empirically analyzing how internal design decisions affect storage behavior, performance, and load distribution.
+Unlike documentation-based studies, this project **connects code → architecture → behavior** by tracing execution paths, identifying design decisions, and validating them through controlled experiments.
 
-The core experiment involves reducing log segment size from **128MB to 1MB**, forcing the system into a non-optimal configuration to observe trade-offs in fragmentation, metadata overhead, and disk I/O patterns.
+The core experiment modifies Redpanda’s log segment size from **128MB to 1MB**, forcing the system outside its optimal design to reveal performance trade-offs.
 
-> If you cannot connect behavior to source-level design, you have not understood the system.
-
----
-
-#  System Overview
-
-Redpanda is a **Kafka-compatible distributed streaming engine** designed for high throughput without JVM overhead.
-
-### Key Characteristics:
-
-* Log-structured storage model
-* Partitioned data streams
-* Append-only segment files
-* Kafka API compatibility
+> If you cannot point to code, you have not understood the system.
 
 ---
 
-#  Environment Setup
+#  What Problem Does Redpanda Solve?
 
-| Component      | Details             |
-| -------------- | ------------------- |
-| OS             | WSL2 (Ubuntu 22.04) |
-| Build System   | Bazel               |
-| Language       | C++                 |
-| Messaging Tool | kafkacat            |
-| Broker Port    | 9092                |
+Redpanda is designed for:
+
+* High-throughput data ingestion
+* Low-latency streaming
+* Efficient disk usage
+
+It replaces traditional Kafka architecture by eliminating JVM overhead and using a **native C++ log-structured storage engine**.
+
+---
+
+#  Execution Path (Code-Level)
+
+A message follows this path:
+
+### 1. Request Handling
+
+📄 `src/v/kafka/server/handlers/produce.cc`
+Handles Kafka ProduceRequest
+
+### 2. Replication (Raft Consensus)
+
+📄 `src/v/raft/consensus.cc`
+Ensures majority agreement
+
+### 3. Storage Engine
+
+📄 `src/v/storage/segment_appender.cc`
+Appends data to log segments
+
+### 4. Disk Write
+
+Uses **O_DIRECT** → bypasses OS cache
+
+---
+
+# 🏗️Key Design Decisions
+
+## 1️⃣ Log-Structured Storage
+
+* Sequential append-only writes
+* Optimized for streaming workloads
+
+**Tradeoff:**
+
+* Small segments → fragmentation
+
+---
+
+## 2️⃣ Direct I/O (O_DIRECT)
+
+* Avoids double buffering
+
+**Tradeoff:**
+
+* Less OS-level caching
+
+---
+
+## 3️⃣ Thread-per-Core Architecture
+
+* Each core runs independently
+
+**Tradeoff:**
+
+* Sensitive to skew
+
+---
+
+#  Concept Mapping
+
+| Concept      | Implementation             |
+| ------------ | -------------------------- |
+| Storage      | Log-structured commit log  |
+| Execution    | Event-driven pipeline      |
+| Streaming    | Kafka-compatible ingestion |
+| Partitioning | Key-based partitioning     |
+| Replication  | Raft consensus             |
 
 ---
 
@@ -49,180 +104,125 @@ Redpanda is a **Kafka-compatible distributed streaming engine** designed for hig
 
 ---
 
-##  Experiment 1 — Log Segment Size Modification (Core Experiment)
+##  Experiment 1 — Segment Size Modification (MANDATORY)
 
-### Objective
+### Change
 
-To analyze how segment size impacts storage behavior and disk efficiency.
-
-### Method
-
-* Modified Redpanda source code
-* Changed segment size from:
-
-  ```text
-  128MB → 1MB
-  ```
-* Rebuilt system using Bazel
-* Produced 50,000 messages
+128MB → 1MB
 
 ### Observation
 
-* Large number of small `.log` files created
-* Increased file system operations
-* Higher metadata overhead
+* Many small `.log` files
+* Increased metadata operations
 
-### Analysis
+### Insight
 
-Segment size directly affects:
+Segment size directly impacts:
 
-* Disk fragmentation
-* Write amplification
-* File system pressure
-
-### Conclusion
-
-Reducing segment size degrades storage efficiency, demonstrating the importance of batching in log-structured systems.
+* Disk efficiency
+* File system overhead
 
 ---
 
 ##  Experiment 2 — Throughput vs Load
 
-### Objective
+### Method
 
-To evaluate system performance under increasing data volume.
+1K → 100K messages
+
+### Observation
+
+* CPU ↑
+* Disk I/O ↑
+* Latency ↑
+
+### Insight
+
+Performance depends on system resources
+
+---
+
+##  Experiment 3 — Partition Skew
 
 ### Method
 
-* Generated workloads of:
+All messages sent with same key
 
-  * 1,000 messages
-  * 10,000 messages
-  * 100,000 messages
+### Observation
 
-### Observations
+* One partition overloaded
+* CPU imbalance
 
-* CPU usage increased with load
-* Disk I/O increased significantly
-* Processing time scaled with message volume
+### Insight
 
-### Analysis
-
-Throughput is constrained by:
-
-* CPU availability
-* Disk bandwidth
-* Message batching efficiency
-
-### Conclusion
-
-System performance scales with load but introduces resource pressure at higher volumes.
-
----
-
-##  Experiment 3 — Partition Skew (Hot Key Problem)
-
-### Objective
-
-To analyze uneven load distribution across partitions.
-
-### Method
-
-* Sent all messages using a fixed key
-
-### Observations
-
-* Data concentrated in a single partition
-* Uneven CPU utilization
-* Reduced parallelism
-
-### Analysis
-
-Kafka-style partitioning:
-
-* Same key → same partition
-* Causes hotspot formation
-
-### Conclusion
-
-Improper key distribution leads to performance bottlenecks and inefficient resource usage.
-
----
-
-#  Storage Analysis
-
-Data stored at:
-
-```bash
-/tmp/redpanda-data/kafka/test-topic/
-```
-
-### Observed Structure:
-
-* Partition directories
-* Multiple segment files
-* Increased file count due to reduced segment size
-
----
-
-#  Concept Mapping
-
-| Concept                | Implementation in Redpanda       |
-| ---------------------- | -------------------------------- |
-| Log-Structured Storage | Append-only segment files        |
-| Partitioning           | Kafka-compatible partition model |
-| Throughput Scaling     | Sequential disk writes           |
-| Load Balancing         | Key-based partition assignment   |
-
----
-
-#  Key Findings
-
-| Observation                           | Insight             |
-| ------------------------------------- | ------------------- |
-| Smaller segments → more files         | Increased overhead  |
-| Higher load → higher CPU & disk usage | Resource dependency |
-| Hot key → uneven partition usage      | Load imbalance      |
+Poor key distribution reduces parallelism
 
 ---
 
 # Failure Analysis
 
-### 1. Small Segment Size
-
-* Excessive file creation
-* Increased metadata operations
-* Reduced disk efficiency
-
-### 2. High Load
+## Case 1 — High Data Volume
 
 * CPU saturation
-* Disk bottleneck
+* Increased latency
 
-### 3. Partition Skew
+## Case 2 — Partition Skew
 
-* Underutilized resources
-* Bottleneck on single partition
+* Uneven load distribution
+
+## Case 3 — Small Segment Size
+
+* File explosion
+* Metadata overhead
+
+---
+
+#  Output Evidence
+
+Data stored in:
+
+```bash
+/tmp/redpanda-data/kafka/test-topic/
+```
+
+Observed:
+
+* Partition directories
+* Multiple segment files
+
+---
+
+#  Key Insights
+
+* Redpanda performance is **design-driven, not accidental**
+* Segment size is a **critical tuning parameter**
+* Balanced partitioning is essential for scalability
 
 ---
 
 #  Conclusion
 
-Redpanda’s performance is strongly influenced by its log-structured design.
-The system is optimized for:
+Redpanda achieves high performance through:
 
-* Large segment sizes
-* Sequential disk access
-* Balanced partitioning
+* Sequential disk writes
+* Controlled batching
+* Efficient partitioning
 
-Breaking these assumptions exposes clear performance degradation, validating the architectural trade-offs behind Redpanda’s design.
-
----
-
-#  References
-
-* https://github.com/redpanda-data/redpanda
-* https://docs.redpanda.com
+Breaking these assumptions leads to clear performance degradation, validating the system’s architectural design.
 
 ---
 
+#  Deliverables
+
+* ✔ Code modifications (GitHub commits)
+* ✔ Experiment files
+* ✔ Execution tracing
+* ✔ README report
+
+---
+
+#  Repository
+
+https://github.com/keshavg25/redpanda
+
+---
