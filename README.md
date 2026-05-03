@@ -1,151 +1,228 @@
-# Redpanda
+# 🦆 DS614 Big Data Engineering: Redpanda Log-Structured Storage Analysis
 
-[![Documentation](https://img.shields.io/badge/documentation-black)](https://redpanda.com/documentation)
-[![Slack](https://img.shields.io/badge/slack-purple)](https://redpanda.com/slack)
-[![Twitter](https://img.shields.io/twitter/follow/redpandadata.svg?style=social&label=Follow)](https://twitter.com/intent/follow?screen_name=redpandadata)
-[![Redpanda University](https://img.shields.io/badge/Redpanda%20University-black)](https://university.redpanda.com/)
-<p align="center">
-<a href="https://www.redpanda.com/"><img src="docs/icon-redpanda.svg" alt="redpanda icon" width="400"></a>
-</p>
+**Team:** THE DATA DUO
+**Members:** KESHAV GANGWANI , ANUSHA SUNGH
+**System Analyzed:** Redpanda — Kafka-compatible streaming platform
+**Repository:** https://github.com/keshavg25/redpanda
+**Base Source:** https://github.com/redpanda-data/redpanda
 
-Redpanda is the most complete, Apache Kafka®-compatible streaming data platform, designed from the ground up to be lighter, faster, and simpler to operate. Free from ZooKeeper™ and JVMs, it prioritizes an end-to-end developer experience with a huge ecosystem of connectors, configurable tiered storage, and more.
+---
 
-# Table of Contents
+#  Executive Summary
 
-- [Get started](#get-started)
-  - [Prebuilt packages](#prebuilt-packages)
-    - [Debian/Ubuntu](#debianubuntu)
-    - [Fedora/RedHat/Amazon Linux](#fedoraredhatamazon-linux)
-    - [macOS](#macos)
-    - [Other Linux environments](#other-linux-environments)
-  - [Build manually](#build-manually)
-  - [Release candidate builds](#release-candidate-builds)
-    - [RC releases on Debian/Ubuntu](#rc-releases-on-debianubuntu)
-    - [RC releases on Fedora/RedHat/Amazon Linux](#rc-releases-on-fedoraredhatamazon-linux)
-    - [RC releases on Docker](#rc-releases-on-docker)
-- [Community](#community)
-- [Resources](#resources)
+Modern streaming systems rely on log-structured storage for high-throughput data ingestion. Redpanda implements this using segmented append-only logs, optimized for sequential disk access and low-latency processing.
 
-# Get started
+This project goes beyond black-box usage by **modifying Redpanda’s source code**, rebuilding the system, and empirically analyzing how internal design decisions affect storage behavior, performance, and load distribution.
 
-## Prebuilt packages
+The core experiment involves reducing log segment size from **128MB to 1MB**, forcing the system into a non-optimal configuration to observe trade-offs in fragmentation, metadata overhead, and disk I/O patterns.
 
-Redpanda Data recommends using the following free, prebuilt stable releases.
+> If you cannot connect behavior to source-level design, you have not understood the system.
 
-### Debian/Ubuntu
+---
 
-```
-curl -1sLf \
-  'https://dl.redpanda.com/nzc4ZYQK3WRGd9sy/redpanda/cfg/setup/bash.deb.sh' \
-  | sudo -E bash
+#  System Overview
 
-sudo apt-get install redpanda
-```
+Redpanda is a **Kafka-compatible distributed streaming engine** designed for high throughput without JVM overhead.
 
-### Fedora/RedHat/Amazon Linux
+### Key Characteristics:
 
-```
-curl -1sLf \
-  'https://dl.redpanda.com/nzc4ZYQK3WRGd9sy/redpanda/cfg/setup/bash.rpm.sh' \
-  | sudo -E bash
+* Log-structured storage model
+* Partitioned data streams
+* Append-only segment files
+* Kafka API compatibility
 
-sudo yum install redpanda
-```
+---
 
-### macOS
+#  Environment Setup
 
-Download the `rpk` [binary here](https://github.com/redpanda-data/redpanda/releases). Docker is required on MacOS.
+| Component      | Details             |
+| -------------- | ------------------- |
+| OS             | WSL2 (Ubuntu 22.04) |
+| Build System   | Bazel               |
+| Language       | C++                 |
+| Messaging Tool | kafkacat            |
+| Broker Port    | 9092                |
 
-```
-brew install redpanda-data/tap/redpanda && rpk container start
-```
+---
 
-### Other Linux environments
+#  Experiments
 
-To install from a `.tar.gz` archive, download the file and extract it into `/opt/redpanda`.
+---
 
-For amd64:
+##  Experiment 1 — Log Segment Size Modification (Core Experiment)
 
-```
-curl -LO https://vectorized-public.s3.us-west-2.amazonaws.com/releases/redpanda/25.2.7/redpanda-25.2.7-amd64.tar.gz
-```
+### Objective
 
-For arm64:
+To analyze how segment size impacts storage behavior and disk efficiency.
 
-```
-curl -LO https://vectorized-public.s3.us-west-2.amazonaws.com/releases/redpanda/25.2.7/redpanda-25.2.7-arm64.tar.gz
-```
+### Method
 
-Replace `25.2.7` with the version you want to download. See [Release Notes](https://github.com/redpanda-data/redpanda/releases) for available releases.
+* Modified Redpanda source code
+* Changed segment size from:
 
-## Build Manually
+  ```text
+  128MB → 1MB
+  ```
+* Rebuilt system using Bazel
+* Produced 50,000 messages
 
-Redpanda Data uses [Bazel](https://bazel.build/) as the build system. Bazel automatically manages most of the toolchains and third-party dependencies.
+### Observation
 
-We rely on [bazelisk](https://github.com/bazelbuild/bazelisk) to get the right
-version of bazel needed for the build. You can for example install it as follows
-and add it to your $PATH (or use one of the other suggested ways from their
-repo).
+* Large number of small `.log` files created
+* Increased file system operations
+* Higher metadata overhead
 
-```
-wget -O ~/bin/bazel https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 && chmod +x ~/bin/bazel
-```
+### Analysis
 
-There are a few system libraries and preinstalled tools our build assumes are
-available locally. To bootstrap and build redpanda along with all its tests.
+Segment size directly affects:
+
+* Disk fragmentation
+* Write amplification
+* File system pressure
+
+### Conclusion
+
+Reducing segment size degrades storage efficiency, demonstrating the importance of batching in log-structured systems.
+
+---
+
+##  Experiment 2 — Throughput vs Load
+
+### Objective
+
+To evaluate system performance under increasing data volume.
+
+### Method
+
+* Generated workloads of:
+
+  * 1,000 messages
+  * 10,000 messages
+  * 100,000 messages
+
+### Observations
+
+* CPU usage increased with load
+* Disk I/O increased significantly
+* Processing time scaled with message volume
+
+### Analysis
+
+Throughput is constrained by:
+
+* CPU availability
+* Disk bandwidth
+* Message batching efficiency
+
+### Conclusion
+
+System performance scales with load but introduces resource pressure at higher volumes.
+
+---
+
+##  Experiment 3 — Partition Skew (Hot Key Problem)
+
+### Objective
+
+To analyze uneven load distribution across partitions.
+
+### Method
+
+* Sent all messages using a fixed key
+
+### Observations
+
+* Data concentrated in a single partition
+* Uneven CPU utilization
+* Reduced parallelism
+
+### Analysis
+
+Kafka-style partitioning:
+
+* Same key → same partition
+* Causes hotspot formation
+
+### Conclusion
+
+Improper key distribution leads to performance bottlenecks and inefficient resource usage.
+
+---
+
+#  Storage Analysis
+
+Data stored at:
 
 ```bash
-sudo ./bazel/install-deps.sh
-bazel build --config=release //...
+/tmp/redpanda-data/kafka/test-topic/
 ```
 
-For more build configurations, see `.bazelrc`.
+### Observed Structure:
 
-## Release candidate builds
+* Partition directories
+* Multiple segment files
+* Increased file count due to reduced segment size
 
-Redpanda Data creates a release candidate (RC) build when we get close to a new release, and we publish it to make new features available for testing.
-RC builds are not recommended for production use.
+---
 
-### RC releases on Debian/Ubuntu
+#  Concept Mapping
 
-```bash
-curl -1sLf \
-  'https://dl.redpanda.com/E4xN1tVe3Xy60GTx/redpanda-unstable/setup.deb.sh' \
-  | sudo -E bash
+| Concept                | Implementation in Redpanda       |
+| ---------------------- | -------------------------------- |
+| Log-Structured Storage | Append-only segment files        |
+| Partitioning           | Kafka-compatible partition model |
+| Throughput Scaling     | Sequential disk writes           |
+| Load Balancing         | Key-based partition assignment   |
 
-sudo apt-get install redpanda
-```
+---
 
-### RC releases on Fedora/RedHat/Amazon Linux
+#  Key Findings
 
-```bash
-curl -1sLf \
-  'https://dl.redpanda.com/E4xN1tVe3Xy60GTx/redpanda-unstable/setup.rpm.sh' \
-  | sudo -E bash
+| Observation                           | Insight             |
+| ------------------------------------- | ------------------- |
+| Smaller segments → more files         | Increased overhead  |
+| Higher load → higher CPU & disk usage | Resource dependency |
+| Hot key → uneven partition usage      | Load imbalance      |
 
-sudo yum install redpanda
-```
+---
 
-### RC releases on Docker
+# Failure Analysis
 
-Example with `v25.1.1-rc1`:
+### 1. Small Segment Size
 
-```bash
-docker pull docker.redpanda.com/redpandadata/redpanda-unstable:v25.1.1-rc1
-```
+* Excessive file creation
+* Increased metadata operations
+* Reduced disk efficiency
 
-# Community
+### 2. High Load
 
-- [Slack](https://redpanda.com/slack): This is the primary way the community interacts in real time. :)
-- [Github Discussions](https://github.com/redpanda-data/redpanda/discussions): This is for longer, async, thoughtful discussions.
-- [GitHub Issues](https://github.com/redpanda-data/redpanda/issues): This is reserved only for actual issues. Please use the mailing list for discussions.
-- [Code of Conduct](./CODE_OF_CONDUCT.md)
-- [Contribute to the Code](./CONTRIBUTING.md)
+* CPU saturation
+* Disk bottleneck
 
-# Resources
+### 3. Partition Skew
 
-- [Redpanda Documentation](https://docs.redpanda.com/home/)
-- [Redpanda Blog](https://www.redpanda.com/blog)
-- [Upcoming Redpanda Events](https://www.redpanda.com/events)
-- [Redpanda Support](https://support.redpanda.com/)
-- [Redpanda University](https://university.redpanda.com/)
+* Underutilized resources
+* Bottleneck on single partition
+
+---
+
+#  Conclusion
+
+Redpanda’s performance is strongly influenced by its log-structured design.
+The system is optimized for:
+
+* Large segment sizes
+* Sequential disk access
+* Balanced partitioning
+
+Breaking these assumptions exposes clear performance degradation, validating the architectural trade-offs behind Redpanda’s design.
+
+---
+
+#  References
+
+* https://github.com/redpanda-data/redpanda
+* https://docs.redpanda.com
+
+---
+
