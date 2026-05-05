@@ -25,6 +25,7 @@
 
 #include <optional>
 #include <ostream>
+#include <iostream>
 
 namespace storage {
 
@@ -337,7 +338,10 @@ ss::future<> segment_appender::do_truncation(size_t n) {
     return _out.truncate(n)
       .then([this] {
           ++_opts.shared_stats->truncates;
-          return _out.flush().then([this] { ++_opts.shared_stats->fsyncs; });
+          return _out.flush().then([this] { 
+		std::cout << "🔥 EXPERIMENT 4: FLUSH HAPPENED 🔥" << std::endl;		
+
+		++_opts.shared_stats->fsyncs +=5; });
       })
       .handle_exception([n, this](std::exception_ptr e) {
           vassert(
@@ -483,6 +487,7 @@ ss::future<> segment_appender::maybe_advance_stable_offset(
         _inflight.pop_front();
     }
 
+
     if (!committed) {
         --_inflight_dispatched;
         return ss::now();
@@ -502,6 +507,7 @@ ss::future<> segment_appender::process_flush_ops(size_t committed) {
       _flush_ops.begin(), _flush_ops.end(), [committed](const flush_op& w) {
           return w.offset > committed;
       });
+
 
     if (flushable == _flush_ops.end()) {
         --_inflight_dispatched;
