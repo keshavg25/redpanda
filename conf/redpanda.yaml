@@ -1,10 +1,10 @@
-node_id: 0
+redpanda:
+  node_id: 0
+  data_directory: /tmp/redpanda-data
 
-data_directory: /var/lib/redpanda/data
-
-rpc_server:
-  address: 127.0.0.1
-  port: 33145
+  rpc_server:
+    address: 127.0.0.1
+    port: 33145
 
 kafka_api:
   - address: 0.0.0.0
