@@ -1,6 +1,7 @@
 redpanda:
   node_id: 0
   data_directory: /tmp/redpanda-data
+  log_segment_size: 1048576   # 1MB    
 
   rpc_server:
     address: 127.0.0.1
