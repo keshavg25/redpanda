@@ -14,8 +14,6 @@ Unlike documentation-based studies, this project **connects code → architectur
 
 The core mandatory experiment modifies Redpanda's log segment size from **128MB to 1MB**, forcing the system outside its optimal design to reveal performance trade-offs. Additional experiments cover throughput scaling, partition skew, log flush behavior, disk storage inspection, and message replay.
 
-> *If you cannot point to code, you have not understood the system.*
-
 ---
 
 ## What Problem Does Redpanda Solve?
@@ -337,16 +335,6 @@ Redpanda achieves high performance through sequential disk writes, controlled ba
 - Flush logging confirmed write-ahead durability (Experiment 4)
 - Physical file inspection confirmed the append-only log (Experiment 5)
 - Offset replay confirmed independent consumer positioning (Experiment 6)
-
----
-
-## Deliverables
-
-- ✔ Code modifications (GitHub commits — `bigdata-experiments` branch)
-- ✔ Experiment scripts and commands
-- ✔ Execution tracing with annotated logs
-- ✔ Screenshot evidence for Experiments 4, 5, 6
-- ✔ README report (this file)
 
 ---
 
