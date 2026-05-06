@@ -163,7 +163,7 @@ done
 
 **Screenshot:**
 
-![Experiment 4 - Log Flush](Screenshot 2026-05-06 040746.png)
+![Experiment 4 - Log Flush](Screenshot%202026-05-06%20040746.png)
 
 **Observations:**
 
@@ -213,7 +213,7 @@ ls -lh /tmp/redpanda-data/kafka/test-topic/0_7
 
 **Screenshot:**
 
-![Experiment 5 - Partition Storage](Screenshot 2026-05-06 043649.png)
+![Experiment 5 - Partition Storage](Screenshot%202026-05-06%20043649.png)
 
 **Observed files:**
 
@@ -266,7 +266,7 @@ kafkacat -b localhost:9092 -t replay-topic -C -o beginning -e
 
 **Screenshot:**
 
-![Experiment 6 - Message Replay](Screenshot 2026-05-06 045634.png)
+![Experiment 6 - Message Replay](Screenshot%202026-05-06%20045634.png)
 
 **Observations:**
 
